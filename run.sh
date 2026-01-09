@@ -1,6 +1,12 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
-# This file will be included as a Docker ENTRYPOINT in our automated testing evironment. 
+# Build and run the Hotel Room Allocation System
 
-echo "Build and Run you server here"
-exit 1
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+echo "Building the application..."
+mvn clean package
+
+echo "Starting the application..."
+java -jar target/room-allocation-1.0.0.jar
