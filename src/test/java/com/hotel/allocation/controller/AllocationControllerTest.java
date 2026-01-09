@@ -36,7 +36,7 @@ class AllocationControllerTest {
                 Arrays.asList(23.0, 45.0, 155.0, 374.0, 22.0, 99.99, 100.0, 101.0, 115.0, 209.0)
         );
 
-        mockMvc.perform(post("/api/v1/occupancy")
+        mockMvc.perform(post("/occupancy")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -51,7 +51,7 @@ class AllocationControllerTest {
         // Test with negative room count
         AllocationRequest request = new AllocationRequest(-1, 5, Arrays.asList(100.0));
 
-        mockMvc.perform(post("/api/v1/occupancy")
+        mockMvc.perform(post("/occupancy")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -61,7 +61,7 @@ class AllocationControllerTest {
     void testCalculateOccupancy_EmptyGuests() throws Exception {
         AllocationRequest request = new AllocationRequest(5, 5, Arrays.asList());
 
-        mockMvc.perform(post("/api/v1/occupancy")
+        mockMvc.perform(post("/occupancy")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
