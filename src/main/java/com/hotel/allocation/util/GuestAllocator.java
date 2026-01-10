@@ -7,7 +7,7 @@ import java.util.List;
 public class GuestAllocator {
 
     private GuestAllocator() {
-        // Utility class to prevent instantiation
+        // Utility class - prevent instantiation
     }
 
     public static AllocationResult allocateRooms(int premiumRooms, int economyRooms, List<Double> potentialGuests) {
@@ -27,32 +27,86 @@ public class GuestAllocator {
         premiumGuests.sort(Comparator.reverseOrder());
         economyGuests.sort(Comparator.reverseOrder());
 
-        // Allocate premium rooms to premium guests first
-        int premiumAllocated = Math.min(premiumRooms, premiumGuests.size());
-        List<Double> allocatedPremiumGuests = new ArrayList<>();
-        if (premiumAllocated > 0) {
-            allocatedPremiumGuests.addAll(premiumGuests.subList(0, premiumAllocated));
+        // Special case: No premium rooms available
+        if (premiumRooms == 0) {
+            return handleNoPremiumRooms(economyRooms, economyGuests);
         }
 
-        // Calculate remaining premium rooms after allocating to premium guests
+        // Special case: No economy rooms available
+        if (economyRooms == 0) {
+            return handleNoEconomyRooms(premiumRooms, premiumGuests, economyGuests);
+        }
+
+        return handleGeneralCase(premiumRooms, economyRooms, premiumGuests, economyGuests);
+    }
+
+    private static AllocationResult handleNoPremiumRooms(int economyRooms, List<Double> economyGuests) {
+        // No premium rooms, only allocate economy guests to economy rooms
+        int economyAllocated = Math.min(economyRooms, economyGuests.size());
+        List<Double> allocatedEconomy = economyGuests.subList(0, economyAllocated);
+        double economyRevenue = allocatedEconomy.stream().mapToDouble(Double::doubleValue).sum();
+
+        return new AllocationResult(
+                0, // premiumAllocated
+                0.0, // premiumRevenue
+                economyAllocated,
+                Math.round(economyRevenue * 100.0) / 100.0
+        );
+    }
+
+    private static AllocationResult handleNoEconomyRooms(int premiumRooms, List<Double> premiumGuests, List<Double> economyGuests) {
+        // No economy rooms
+        // First allocate premium guests to premium rooms
+        int premiumAllocated = Math.min(premiumRooms, premiumGuests.size());
+        List<Double> allocatedPremium = premiumGuests.subList(0, premiumAllocated);
+
         int remainingPremiumRooms = premiumRooms - premiumAllocated;
 
-        // Allocate economy rooms to economy guests
-        int economyAllocated = Math.min(economyRooms, economyGuests.size());
-        List<Double> allocatedEconomyGuests = new ArrayList<>();
+        // Economy rooms are "full" (since we have 0 economy rooms, any economy guest exceeds capacity)
+        // So we can upgrade economy guests to premium rooms if premium rooms are available
+        if (remainingPremiumRooms > 0 && !economyGuests.isEmpty()) {
+            // Upgrade the highest paying economy guests
+            int upgrades = Math.min(remainingPremiumRooms, economyGuests.size());
+            for (int i = 0; i < upgrades; i++) {
+                allocatedPremium.add(economyGuests.get(i));
+                premiumAllocated++;
+            }
+        }
 
-        // Apply smart upgrade: if premium rooms are empty and economy rooms are full,
-        // upgrade highest paying economy guests
+        double premiumRevenue = allocatedPremium.stream().mapToDouble(Double::doubleValue).sum();
+
+        return new AllocationResult(
+                premiumAllocated,
+                Math.round(premiumRevenue * 100.0) / 100.0,
+                0, // economyAllocated
+                0.0 // economyRevenue
+        );
+    }
+
+    private static AllocationResult handleGeneralCase(int premiumRooms, int economyRooms,
+                                                      List<Double> premiumGuests, List<Double> economyGuests) {
+        // STEP 1: Allocate premium rooms to premium guests
+        int premiumAllocated = Math.min(premiumRooms, premiumGuests.size());
+        List<Double> allocatedPremium = new ArrayList<>(premiumGuests.subList(0, premiumAllocated));
+
+        // STEP 2: Calculate remaining premium rooms
+        int remainingPremiumRooms = premiumRooms - premiumAllocated;
+
+        // STEP 3: Allocate economy rooms to economy guests
+        int economyAllocated = Math.min(economyRooms, economyGuests.size());
+        List<Double> allocatedEconomy = new ArrayList<>();
+
+        // STEP 4: Check if upgrade is possible
+        // Upgrade condition: Premium rooms are available AND economy rooms are full
+        // AND there are more economy guests than economy rooms
         if (remainingPremiumRooms > 0 && economyGuests.size() > economyRooms) {
             // We can upgrade some economy guests
-            int upgrades = Math.min(remainingPremiumRooms, economyGuests.size());
+            int upgrades = Math.min(remainingPremiumRooms, economyGuests.size() - economyRooms);
 
             // Upgrade the highest paying economy guests
             for (int i = 0; i < upgrades; i++) {
-                if (i < economyGuests.size()) {
-                    allocatedPremiumGuests.add(economyGuests.get(i));
-                    premiumAllocated++;
-                }
+                allocatedPremium.add(economyGuests.get(i));
+                premiumAllocated++;
             }
 
             // Remove upgraded guests from economy list
@@ -61,18 +115,18 @@ public class GuestAllocator {
             }
         }
 
-        // Now allocate economy rooms from remaining economy guests
+        // STEP 5: Now allocate economy rooms from remaining economy guests
         economyAllocated = Math.min(economyRooms, economyGuests.size());
         if (economyAllocated > 0) {
-            allocatedEconomyGuests.addAll(economyGuests.subList(0, economyAllocated));
+            allocatedEconomy.addAll(economyGuests.subList(0, economyAllocated));
         }
 
-        // Calculate revenues
-        double premiumRevenue = allocatedPremiumGuests.stream()
+        // STEP 6: Calculate revenues
+        double premiumRevenue = allocatedPremium.stream()
                 .mapToDouble(Double::doubleValue)
                 .sum();
 
-        double economyRevenue = allocatedEconomyGuests.stream()
+        double economyRevenue = allocatedEconomy.stream()
                 .mapToDouble(Double::doubleValue)
                 .sum();
 
@@ -86,6 +140,42 @@ public class GuestAllocator {
                 economyAllocated,
                 economyRevenue
         );
+    }
+
+    // Helper method for debugging
+    public static void debugAllocation(int premiumRooms, int economyRooms, List<Double> potentialGuests) {
+        System.out.println("=== DEBUG ALLOCATION ===");
+        System.out.println("Premium Rooms: " + premiumRooms);
+        System.out.println("Economy Rooms: " + economyRooms);
+        System.out.println("Guests: " + potentialGuests);
+
+        // Separate guests
+        List<Double> premiumGuests = new ArrayList<>();
+        List<Double> economyGuests = new ArrayList<>();
+
+        for (Double price : potentialGuests) {
+            if (price >= 100.0) {
+                premiumGuests.add(price);
+            } else {
+                economyGuests.add(price);
+            }
+        }
+
+        premiumGuests.sort(Comparator.reverseOrder());
+        economyGuests.sort(Comparator.reverseOrder());
+
+        System.out.println("Premium Guests (sorted): " + premiumGuests);
+        System.out.println("Economy Guests (sorted): " + economyGuests);
+
+        // Run allocation
+        AllocationResult result = allocateRooms(premiumRooms, economyRooms, potentialGuests);
+
+        System.out.println("Result:");
+        System.out.println("  Premium Allocated: " + result.getPremiumAllocated());
+        System.out.println("  Premium Revenue: " + result.getPremiumRevenue());
+        System.out.println("  Economy Allocated: " + result.getEconomyAllocated());
+        System.out.println("  Economy Revenue: " + result.getEconomyRevenue());
+        System.out.println("=== END DEBUG ===");
     }
 
     public static class AllocationResult {
